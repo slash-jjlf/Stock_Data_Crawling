@@ -76,7 +76,89 @@ sector_ksq = pd.read_csv(BytesIO(down_sector_ksq.content), encoding='EUC-KR')
 # 바이너리 형태로 변경 후, pandas로 읽어옴(기본 인코딩은 UTF8에서 EUC-KR로 변경)
 
 # 3. 코스피/코스닥 데이터 합치기
-krx_sector = pd.concat([sector_stk, sector_ksq])
+krx_sector = pd.concat([sector_stk, sector_ksq]).reset_index(drop = True) # 데이터 합치고 인덱스 초기화
+krx_sector['종목명'] = krx_sector['종목명'].str.strip() # 종목명에 공백 있는 경우 제거
+krx_sector['기준일'] = biz_day # 최근 영업일로 기준일 열 추가
+
+# 4. 개별 종목 지표 크롤링
+gen_otp_url = "http://data.krx.co.kr/comm/fileDn/GenerateOTP/generate.cmd"
+gen_otp_data = {
+    'searchType': '1', 
+    'mktId': 'ALL', # 코스피, 코스닥 동시에
+    'trdDd': biz_day, # 네이버에서 가져온 최근 영업일
+    'csvxls_isNo': 'false',
+    'name': 'fileDown',
+    'url': 'dbms/MDC/STAT/standard/MDCSTAT03501'
+    }
+headers = {'Referer': 'http://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201',
+           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'}
+# Referer, User-Agent 안하면 봇으로 인식해서 데이터 가져올 수 없음
+
+otp_data = rq.post(gen_otp_url, gen_otp_data, headers=headers).text
+otp_data # otp 취득 완료! 이제 다운로드 요청 하면됨
+
+# 개별 종목 지표 데이터 가져오기
+down_url = "http://data.krx.co.kr/comm/fileDn/download_csv/download.cmd"
+krx_ind = rq.post(down_url, {'code': otp_data}, headers=headers)
+# 클렌징 처리
+krx_ind = pd.read_csv(BytesIO(krx_ind.content), encoding='EUC-KR') 
+# 바이너리 형태로 변경 후, pandas로 읽어옴(기본 인코딩은 UTF8에서 EUC-KR로 변경)
+krx_ind['종목명'] = krx_ind['종목명'].str.strip() # 종목명에 공백 있는 경우 제거
+krx_ind['기준일'] = biz_day # 최근 영업일로 기준일 열 추가
+
+# 5. 다운로드 받은 데이타 합치고 정리(krx_sector, krx_ind)
+
+# 1) 두개의 데이터를 공통으로 존재하는 열을 기준으로 합침
+kor_ticker = pd.merge(krx_sector, krx_ind,
+                      on=krx_sector.columns.intersection(
+                          krx_ind.columns).tolist(),
+                      how='outer')
+
+# 2) 하나의 데이터에만 존재하는 종목 확인
+set(krx_sector['종목명']).symmetric_difference(set(krx_ind['종목명'])) # 리츠 등  확인
+
+# 3) 일반적인 종목과 스팩, 우선주, 리츠, 기타 주식을 구분
+kor_ticker[kor_ticker['종목명'].str.contains('스팩|제[0-9]+호')]['종목명'] # 스펙 종목 찾기
+kor_ticker[kor_ticker['종목코드'].str[-1:] != '0']['종목명'] # 종목코드 끝자리가 0이아니면 우선주
+kor_ticker[kor_ticker['종목명'].str.endswith('리츠')]['종목명'] # 리츠 찾기
+
+# 4) '2), 3)'의 조건들을 사용하여, 종목구분 열 추가
+
+import numpy as np # np.where 함수 사용하기 위해 numpy 호출
+
+diff = list(set(krx_sector['종목명']).symmetric_difference(set(krx_ind['종목명']))) # 한 곳에만 존재하는 종목
+
+kor_ticker['종목구분'] = np.where(kor_ticker['종목명'].str.contains('스팩|제[0-9]+호'), '스팩',
+                              np.where(kor_ticker['종목코드'].str[-1:] != '0', '우선주',
+                                       np.where(kor_ticker['종목명'].str.endswith('리츠'), '리츠',
+                                                np.where(kor_ticker['종목명'].isin(diff), '기타', '보통주'))))
+
+# 5) 최종 클렌징
+kor_ticker = kor_ticker.reset_index(drop=True) # 인덱스 초기화
+kor_ticker.columns = kor_ticker.columns.str.replace(' ', '') # 열이름에 공백 제거
+kor_ticker = kor_ticker[['종목코드', '종목명', '시장구분', '업종명', '종가', '시가총액', '기준일', 'EPS',
+       'PER', '선행EPS', '선행PER', 'BPS', 'PBR', '주당배당금', '배당수익률', '종목구분']] # 원하는 열로만 재구성
+kor_ticker = kor_ticker.replace({np.nan: None}) # mySQL에 nan을 저장하지 못하므로, None으로 변경
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
