@@ -1,0 +1,8 @@
+beautifulsoup4==4.13.4
+numpy==2.3.2
+pandas==2.3.1
+pymysql==1.1.1
+python_dateutil==2.9.0.post0
+Requests==2.32.4
+SQLAlchemy==2.0.39
+tqdm==4.67.1
