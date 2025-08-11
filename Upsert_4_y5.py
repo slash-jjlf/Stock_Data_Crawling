@@ -63,7 +63,7 @@ for i in tqdm(range(0, len(ticker_list))):
         price = data_price.iloc[:, 0:6] # 행전체와 필요한 열만 선택
         price.columns = ['날짜', '시가', '고가', '저가', '종가', '거래량'] # 열이름이 약간씩 이상한 것 수정
         price = price.dropna() # 마지막행에 n/a있는 것 삭제
-        price['날짜'] = price['날짜'].str.extract('(\d+)') # Regex를 이용해 날짜 부분에서 숫자만 추출
+        price['날짜'] = price['날짜'].str.extract(r'(\d+)') # Regex를 이용해 날짜 부분에서 숫자만 추출
         price['날짜'] = pd.to_datetime(price['날짜']) # 날짜에서 추출한 숫자를 datetime 형식으로 변환
         price['종목코드'] = ticker
         price['종목명'] = name
