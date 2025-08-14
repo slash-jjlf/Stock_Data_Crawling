@@ -12,10 +12,10 @@ import json
 import numpy as np
 
 # DB 연결
-engine = create_engine('mysql+pymysql://root:1234@localhost:3306/stock_db')
-con = pymysql.connect(user='root',
-                      passwd='1234',
-                      host='127.0.0.1',
+engine = create_engine('mysql+pymysql://slash:passion4@192.168.0.53:3306/stock_db')
+con = pymysql.connect(user='slash',
+                      passwd='pasison4',
+                      host='192.168.0.53',
                       db='stock_db',
                       charset='utf8')
 mycursor = con.cursor()
